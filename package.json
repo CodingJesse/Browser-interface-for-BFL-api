@@ -1,0 +1,24 @@
+{
+  "name": "flux",
+  "version": "1.0.0",
+  "description": "An application that uses the Flux API to generate images.",
+  "main": "server.js",
+  "scripts": {
+    "start": "node server.js"
+  },
+  "author": "Hegeneer <https://hegeneer.com>",
+  "license": "Unlicense",
+  "dependencies": {
+    "axios": "^1.7.7",
+    "dotenv": "^16.4.5",
+    "express": "^4.21.1"
+  },
+  "keywords": [
+    "flux",
+    "api",
+    "images",
+    "hegeneer",
+    "free",
+    "open source"
+  ]
+}

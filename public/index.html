@@ -1,0 +1,261 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>Flux API Interface | by hegeneer</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+</head>
+<body class="bg-gray-100 flex flex-col min-h-screen">
+
+  <header class="bg-white shadow">
+    <div class="container mx-auto px-4 py-6">
+      <h1 class="text-2xl font-bold text-gray-800">Flux API Interface</h1>
+    </div>
+  </header>
+
+  <main class="flex-grow container mx-auto px-4 py-6">
+    <form id="fluxForm" class="space-y-4">
+      <div>
+        <label for="prompt" class="block text-sm font-medium text-gray-700">Prompt:</label>
+        <textarea id="prompt" name="prompt" rows="4" class="mt-1 block w-full rounded-md border-gray-300 shadow-sm focus:border-indigo-500 focus:ring-indigo-500 p-1"></textarea>
+      </div>
+
+      <div>
+        <button type="button" id="toggleAdvancedOptions" class="text-indigo-600 hover:underline focus:outline-none">
+          Show Advanced Options
+        </button>
+      </div>
+
+      <div id="advancedOptions" class="hidden space-y-4">
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+          <div class="col-span-1 md:col-span-2">
+            <label for="model" class="block text-sm font-medium text-gray-700">Select Model:</label>
+            <select id="model" name="model" class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-1">
+              <option value="flux-pro-1.1">FLUX 1.1 [pro]</option>
+              <option value="flux-pro">FLUX.1 [pro]</option>
+              <option value="flux-dev">FLUX.1 [dev]</option>
+            </select>
+          </div>
+          <div>
+            <label for="width" class="block text-sm font-medium text-gray-700">Width (256 - 1440):</label>
+            <input type="number" id="width" name="width" min="256" max="1440" step="32" value="1024" class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-1">
+          </div>
+          <div>
+            <label for="height" class="block text-sm font-medium text-gray-700">Height (256 - 1440):</label>
+            <input type="number" id="height" name="height" min="256" max="1440" step="32" value="768" class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-1">
+          </div>
+          <div id="stepsContainer">
+            <label for="steps" class="block text-sm font-medium text-gray-700">Steps: (1 - 50)</label>
+            <input type="number" id="steps" name="steps" min="1" max="50" value="28" class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-1">
+          </div>
+          <div id="guidanceContainer">
+            <label for="guidance" class="block text-sm font-medium text-gray-700">Guidance: (1 - 15)</label>
+            <input type="number" id="guidance" name="guidance" step="0.1" value="3.0" class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-1">
+          </div>
+          <div>
+            <label for="seed" class="block text-sm font-medium text-gray-700">Seed (Optional):</label>
+            <input type="number" id="seed" name="seed" class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-1">
+          </div>
+          <div>
+            <label for="safety_tolerance" class="block text-sm font-medium text-gray-700">Safety Tolerance (0 - 6):</label>
+            <input type="number" id="safety_tolerance" name="safety_tolerance" min="0" max="6" value="2" class="mt-1 block w-full rounded-md border border-gray-300 shadow-sm p-1">
+          </div>
+          <div class="col-span-1 md:col-span-2">
+            <label class="block text-sm font-medium text-gray-700">
+              <input type="checkbox" id="prompt_upsampling" name="prompt_upsampling" class="mr-2">
+              Prompt Upsampling
+            </label>
+          </div>
+        </div>
+      </div>
+
+      <div id="errorMessage" class="text-red-600"></div>
+
+      <div>
+        <button type="button" onclick="submitForm()" class="inline-flex items-center px-4 py-2 bg-indigo-600 border border-transparent rounded-md font-semibold text-white hover:bg-indigo-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500">Run</button>
+      </div>
+    </form>
+
+    <div id="result" class="mt-6">
+      <div id="imagePlaceholder" class="w-full max-w-md mx-auto bg-gray-200 rounded-md h-64 flex items-center justify-center">
+        <span class="text-gray-500">Your image will appear here.</span>
+      </div>
+    </div>
+  </main>
+
+  <footer class="bg-white shadow">
+    <div class="container mx-auto px-4 py-4 text-center text-sm text-gray-600">
+      <p>Made by: <a href="https://hegeneer.com" class="text-indigo-600 hover:underline">hegeneer</a></p>
+      <p>Sponsored by <a href="https://www.hegecoin.com" class="text-indigo-600 hover:underline">www.hegecoin.com</a></p>
+    </div>
+  </footer>
+
+  <div id="imageModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 hidden">
+    <span id="closeModal" class="absolute top-4 right-4 text-white text-2xl cursor-pointer">&times;</span>
+    <img id="modalImage" src="" alt="Enlarged Image" class="max-w-full max-h-full">
+  </div>
+
+  <script>
+    const toggleButton = document.getElementById('toggleAdvancedOptions');
+    const advancedOptions = document.getElementById('advancedOptions');
+    let advancedOptionsVisible = false;
+
+    toggleButton.addEventListener('click', () => {
+      advancedOptionsVisible = !advancedOptionsVisible;
+      if (advancedOptionsVisible) {
+        advancedOptions.classList.remove('hidden');
+        toggleButton.textContent = 'Hide Advanced Options';
+      } else {
+        advancedOptions.classList.add('hidden');
+        toggleButton.textContent = 'Show Advanced Options';
+      }
+    });
+
+    const modelSelect = document.getElementById('model');
+    const stepsContainer = document.getElementById('stepsContainer');
+    const guidanceContainer = document.getElementById('guidanceContainer');
+
+    modelSelect.addEventListener('change', () => {
+      const selectedModel = modelSelect.value;
+
+      if (selectedModel === 'flux-pro-1.1') {
+        stepsContainer.style.display = 'none';
+        guidanceContainer.style.display = 'none';
+      } else if (selectedModel === 'flux-pro') {
+        stepsContainer.style.display = 'block';
+        guidanceContainer.style.display = 'block';
+      } else if (selectedModel === 'flux-dev') {
+        stepsContainer.style.display = 'block';
+        guidanceContainer.style.display = 'block';
+      }
+    });
+
+    modelSelect.dispatchEvent(new Event('change'));
+
+    async function submitForm() {
+      const prompt = document.getElementById('prompt').value.trim();
+      const model = document.getElementById('model').value;
+      const width = parseInt(document.getElementById('width').value);
+      const height = parseInt(document.getElementById('height').value);
+      const steps = document.getElementById('steps').value ? parseInt(document.getElementById('steps').value) : null;
+      const guidance = document.getElementById('guidance').value ? parseFloat(document.getElementById('guidance').value) : null;
+      const seed = document.getElementById('seed').value ? parseInt(document.getElementById('seed').value) : null;
+      const safety_tolerance = parseInt(document.getElementById('safety_tolerance').value);
+      const prompt_upsampling = document.getElementById('prompt_upsampling').checked;
+
+      const errorMessage = document.getElementById('errorMessage');
+      errorMessage.textContent = '';
+
+      const errors = [];
+
+      if (!prompt) {
+        errors.push('Prompt cannot be empty.');
+      }
+
+      if (width < 256 || width > 1440 || width % 32 !== 0) {
+        errors.push('Width must be between 256 and 1440 and a multiple of 32.');
+      }
+
+      if (height < 256 || height > 1440 || height % 32 !== 0) {
+        errors.push('Height must be between 256 and 1440 and a multiple of 32.');
+      }
+
+      if (safety_tolerance < 0 || safety_tolerance > 6) {
+        errors.push('Safety Tolerance must be between 0 and 6.');
+      }
+
+      if (model === 'flux-pro' || model === 'flux-dev') {
+        if (steps === null || steps < 1) {
+          errors.push('Steps must be at least 1.');
+        }
+        if (guidance === null) {
+          errors.push('Guidance must be provided.');
+        }
+      }
+
+      if (errors.length > 0) {
+        errorMessage.innerHTML = errors.join('<br>');
+        return;
+      }
+
+      document.getElementById('result').innerHTML = `
+        <div id="imagePlaceholder" class="w-full max-w-md mx-auto bg-gray-200 rounded-md h-64 flex items-center justify-center">
+          <span class="text-gray-500">Generating image...</span>
+        </div>
+      `;
+
+      const response = await fetch('/create-request', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+
+        body: JSON.stringify({
+          prompt,
+          model,
+          width,
+          height,
+          steps,
+          guidance,
+          seed,
+          safety_tolerance,
+          prompt_upsampling,
+        }),
+      });
+
+      const data = await response.json();
+      if (data.id) {
+        pollResult(data.id);
+      } else {
+        document.getElementById('result').innerHTML = `<p class="text-red-600">Error: ${data.error}</p>`;
+      }
+    }
+
+    async function pollResult(requestId) {
+      while (true) {
+        await new Promise(resolve => setTimeout(resolve, 1000));
+        const response = await fetch(`/get-result?id=${requestId}`);
+        const data = await response.json();
+        if (data.status === 'Ready') {
+          const imageUrl = data.localPath;
+
+          document.getElementById('result').innerHTML = `
+            <h3 class="text-lg font-medium text-gray-800">Result:</h3>
+            <img src="${imageUrl}" alt="Result" id="resultImage" class="mt-4 w-full max-w-md mx-auto rounded-md cursor-pointer" />
+          `;
+          document.getElementById('resultImage').addEventListener('click', () => {
+            openModal(imageUrl);
+          });
+          break;
+        } else if (data.status === 'Error') {
+          document.getElementById('result').innerHTML = `<p class="text-red-600">Error: ${data.result.error || 'An error occurred during image generation.'}</p>`;
+          break;
+        } else {
+          document.getElementById('imagePlaceholder').querySelector('span').textContent = `Status: ${data.status}`;
+        }
+      }
+    }
+
+    const imageModal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    const closeModal = document.getElementById('closeModal');
+
+    function openModal(imageUrl) {
+      modalImage.src = imageUrl;
+      imageModal.classList.remove('hidden');
+    }
+
+    closeModal.addEventListener('click', () => {
+      imageModal.classList.add('hidden');
+    });
+
+    imageModal.addEventListener('click', (e) => {
+      if (e.target === imageModal) {
+        imageModal.classList.add('hidden');
+      }
+    });
+  </script>
+
+</body>
+</html>
