@@ -4,6 +4,8 @@
 
 A simple application that allows you to generate images using the Flux API. This interface lets you input prompts, adjust advanced options, and view and save the generated images directly.
 
+<img src="./public/images/image.jpg" alt="Image1" width="300"/>
+
 ### Table of Contents 
  
 - Prerequisites
@@ -108,7 +110,6 @@ project-directory/
 ├── server.js
 ├── routes.js
 ├── package.json
-├── node_modules/
 ├── public/
 │   ├── index.html
 │   └── images/
