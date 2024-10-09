@@ -110,7 +110,6 @@ project-directory/
 ├── server.js
 ├── routes.js
 ├── package.json
-├── node_modules/
 ├── public/
 │   ├── index.html
 │   └── images/
