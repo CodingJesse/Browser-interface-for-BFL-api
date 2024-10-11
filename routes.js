@@ -12,6 +12,18 @@ if (!fs.existsSync(imagesDir)) {
 const API_KEY = process.env.API_KEY;
 const BASE_URL = process.env.BASE_URL || 'https://api.bfl.ml';
 
+function getNextImageName(directory) {
+  let count = 1;
+  let fileName = `image${count}.jpg`;
+
+  while (fs.existsSync(path.join(directory, fileName))) {
+    count++;
+    fileName = `image${count}.jpg`;
+  }
+
+  return fileName;
+}
+
 router.post('/create-request', async (req, res) => {
   const {
     prompt,
@@ -72,7 +84,8 @@ router.get('/get-result', async (req, res) => {
       const imageUrl = result.data.result.sample;
       const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
       const imageBuffer = Buffer.from(imageResponse.data, 'binary');
-      const imageName = `image_${id}.jpg`;
+
+      const imageName = getNextImageName(imagesDir);
       const imagePath = path.join(imagesDir, imageName);
 
       fs.writeFileSync(imagePath, imageBuffer);
