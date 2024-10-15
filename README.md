@@ -139,6 +139,8 @@ If you encounter issues generating images, ensure your API key is correct and th
 If you have questions or need assistance, please contact me on telegram [https://t.me/hegeneer](https://t.me/hegeneer) .
 
 ---
+## Work in progress
+I am currently working on enhancing the application with several new features. These include the ability to generate multiple images with a single prompt in one click, save prompts for future use, and a revamped interface for a more streamlined user experience. Additionally, I'm integrating prompt enhancement powered by OpenAI, improved batch processing capabilities, and a history feature for tracking and reusing previous prompts
 
 
 Enjoy!
