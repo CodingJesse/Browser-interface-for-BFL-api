@@ -2,101 +2,210 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 const path = require('path');
-const fs = require('fs');
+const fs = require('fs').promises; 
 
 const imagesDir = path.join(__dirname, 'public', 'images');
-if (!fs.existsSync(imagesDir)) {
-  fs.mkdirSync(imagesDir, { recursive: true });
-}
-
 const API_KEY = process.env.API_KEY;
 const BASE_URL = process.env.BASE_URL || 'https://api.bfl.ml';
 
+//mapping
+const MODEL_ENDPOINTS = {
+    'flux-pro-1.1': 'flux-pro-1.1',
+    'flux-pro': 'flux-pro',
+    'flux-dev': 'flux-dev',
+    'flux-pro-1.1-ultra': 'flux-pro-1.1-ultra'
+};
+
+fs.access(imagesDir)
+    .catch(() => fs.mkdir(imagesDir, { recursive: true }));
+
 function getNextImageName(directory) {
-  let count = 1;
-  let fileName = `image${count}.jpg`;
+    let count = 1;
+    let fileName = `image${count}.jpg`;
 
-  while (fs.existsSync(path.join(directory, fileName))) {
-    count++;
-    fileName = `image${count}.jpg`;
-  }
+    while (fs.existsSync(path.join(directory, fileName))) {
+        count++;
+        fileName = `image${count}.jpg`;
+    }
 
-  return fileName;
+    return fileName;
 }
 
-router.post('/create-request', async (req, res) => {
-  const {
-    prompt,
-    model,
-    width,
-    height,
-    steps,
-    guidance,
-    seed,
-    safety_tolerance,
-    prompt_upsampling,
-  } = req.body;
-
-  let payload = {
-    prompt,
-    width: parseInt(width) || 1024,
-    height: parseInt(height) || 768,
-    prompt_upsampling: !!prompt_upsampling,
-    seed: seed ? parseInt(seed) : undefined,
-    safety_tolerance: safety_tolerance ? parseInt(safety_tolerance) : undefined,
-  };
-
-  if (model !== 'flux-pro-1.1') {
-    payload.steps = steps ? parseInt(steps) : undefined;
-    payload.guidance = guidance ? parseFloat(guidance) : undefined;
-  }
-
+router.get('/list-images', async (req, res) => {
   try {
-    const response = await axios.post(
-      `${BASE_URL}/v1/${model}`,
-      payload,
-      {
-        headers: {
-          'Accept': 'application/json',
-          'x-key': API_KEY,
-          'Content-Type': 'application/json',
-        },
-      }
-    );
-    res.json({ id: response.data.id });
+      const files = await fs.readdir(imagesDir);
+      const images = await Promise.all(
+          files
+              .filter(file => file.endsWith('.jpg'))
+              .map(async (file) => {
+                  const stats = await fs.stat(path.join(imagesDir, file));
+                  return {
+                      path: `/images/${file}`,
+                      created: stats.mtime,
+                      prompt: 'Generated image'
+                  };
+              })
+      );
+      
+      images.sort((a, b) => a.created - b.created);
+      
+      res.json(images);
   } catch (error) {
-    res.status(500).json({ error: error.response?.data || error.message });
+      console.error('Failed to list images:', error);
+      res.status(500).json({ error: 'Failed to list images' });
   }
 });
 
-router.get('/get-result', async (req, res) => {
-  const { id } = req.query;
-  try {
-    const result = await axios.get(`${BASE_URL}/v1/get_result`, {
-      headers: {
-        'Accept': 'application/json',
-        'x-key': API_KEY,
-      },
-      params: { id },
-    });
+router.post('/create-request', async (req, res) => {
+    try {
+        const { model, ...requestData } = req.body;
+        
+        if (!model) {
+            return res.status(400).json({ error: 'Model parameter is required' });
+        }
 
-    if (result.data.status === 'Ready' && result.data.result && result.data.result.sample) {
-      const imageUrl = result.data.result.sample;
-      const imageResponse = await axios.get(imageUrl, { responseType: 'arraybuffer' });
-      const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+        if (!API_KEY) {
+            return res.status(500).json({ error: 'API key is not configured' });
+        }
 
-      const imageName = getNextImageName(imagesDir);
-      const imagePath = path.join(imagesDir, imageName);
+        const endpoint = MODEL_ENDPOINTS[model];
+        if (!endpoint) {
+            return res.status(400).json({ error: 'Invalid model selected' });
+        }
 
-      fs.writeFileSync(imagePath, imageBuffer);
+        const apiUrl = `${BASE_URL}/v1/${endpoint}`;
+        console.log('Sending request to:', apiUrl);
+        console.log('With payload:', requestData);
 
-      result.data.localPath = `/images/${imageName}`;
+        const response = await axios.post(
+            apiUrl,
+            requestData,
+            {
+                headers: {
+                    'Accept': 'application/json',
+                    'x-key': API_KEY,
+                    'Content-Type': 'application/json',
+                },
+                validateStatus: false
+            }
+        );
+
+        console.log('API Response:', {
+            status: response.status,
+            data: response.data,
+            headers: response.headers
+        });
+
+        if (response.status === 402) {
+            return res.status(402).json({
+                error: 'Insufficient credits',
+                detail: 'Please add more credits to your account.',
+                url: 'https://api.bfl.ml'
+            });
+        }
+
+        if (response.status !== 200) {
+            return res.status(response.status).json({
+                error: response.data.detail || response.data.error || 'API Error',
+                detail: response.data
+            });
+        }
+
+        res.json({ id: response.data.id });
+
+    } catch (error) {
+        console.error('Server error:', error);
+
+        if (error.response) {
+            return res.status(error.response.status || 500).json({
+                error: error.response.data.detail || error.response.data.error || 'API Error',
+                detail: error.response.data
+            });
+        }
+
+        res.status(500).json({
+            error: 'Server error',
+            detail: error.message
+        });
     }
+});
 
-    res.json(result.data);
-  } catch (error) {
-    res.status(500).json({ error: error.response?.data || error.message });
-  }
+router.get('/get-result', async (req, res) => {
+    try {
+        const { id, saveToFile } = req.query;
+        
+        if (!id) {
+            return res.status(400).json({ error: 'ID is required' });
+        }
+
+        const response = await axios.get(`${BASE_URL}/v1/get_result`, {
+            headers: {
+                'Accept': 'application/json',
+                'x-key': API_KEY,
+            },
+            params: { id },
+            validateStatus: false
+        });
+
+        console.log('Get Result Response:', {
+            status: response.status,
+            data: response.data
+        });
+
+        if (response.status !== 200) {
+            return res.status(response.status).json({
+                error: response.data.detail || response.data.error || 'API Error',
+                detail: response.data
+            });
+        }
+
+        if (!response.data.status) {
+            return res.status(500).json({
+                error: 'Invalid response format',
+                detail: 'Status field missing in response'
+            });
+        }
+
+        if (response.data.status === 'Ready' && response.data.result?.sample) {
+            try {
+                const imageUrl = response.data.result.sample;
+                const imageResponse = await axios.get(imageUrl, { 
+                    responseType: 'arraybuffer',
+                    validateStatus: false
+                });
+
+                if (imageResponse.status !== 200) {
+                    throw new Error('Failed to download image');
+                }
+
+                const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+
+                if (saveToFile === 'true') {
+                    const imageName = getNextImageName(imagesDir);
+                    const imagePath = path.join(imagesDir, imageName);
+                    fs.writeFileSync(imagePath, imageBuffer);
+                    response.data.localPath = `/images/${imageName}`;
+                } else {
+                    const base64Image = imageBuffer.toString('base64');
+                    response.data.imageData = `data:image/jpeg;base64,${base64Image}`;
+                }
+            } catch (imageError) {
+                console.error('Image download error:', imageError);
+                return res.status(500).json({
+                    error: 'Failed to download image',
+                    detail: imageError.message
+                });
+            }
+        }
+
+        res.json(response.data);
+    } catch (error) {
+        console.error('Get result error:', error);
+        res.status(500).json({
+            error: error.response?.data?.error || 'Failed to get result',
+            detail: error.message
+        });
+    }
 });
 
 module.exports = router;
