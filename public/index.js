@@ -159,11 +159,28 @@ function updateGalleryCount() {
     }
 }
 
+// Vervang de bestaande pollResult functie
 async function pollResult(id) {
     let attempts = 0;
     const maxAttempts = 60;
-    
-    while (attempts < maxAttempts) {
+
+    // Clear any existing interval
+    if (currentPollInterval) {
+        clearInterval(currentPollInterval);
+        currentPollInterval = null;
+    }
+
+    const poll = async () => {
+        if (attempts >= maxAttempts) {
+            if (currentPollInterval) {
+                clearInterval(currentPollInterval);
+                currentPollInterval = null;
+            }
+            isGenerating = false;
+            showError('Generation timeout - please try again');
+            return;
+        }
+
         try {
             const response = await fetch(`/get-result?id=${id}&saveToFile=${saveToFileSystem}`);
             const data = await response.json();
@@ -173,8 +190,13 @@ async function pollResult(id) {
             }
 
             if (data.status === 'Ready') {
-                const timestamp = new Date().toISOString();
+                if (currentPollInterval) {
+                    clearInterval(currentPollInterval);
+                    currentPollInterval = null;
+                }
+
                 if (saveToFileSystem && data.localPath) {
+                    const timestamp = new Date().toISOString();
                     generatedImages.set(timestamp, {
                         data: data.localPath,
                         prompt: document.getElementById('prompt').value,
@@ -185,8 +207,8 @@ async function pollResult(id) {
                     if (currentTab === 'gallery') {
                         updateGalleryView();
                     }
-                    return;
                 } else if (data.imageData) {
+                    const timestamp = new Date().toISOString();
                     generatedImages.set(timestamp, {
                         data: data.imageData,
                         prompt: document.getElementById('prompt').value
@@ -196,23 +218,44 @@ async function pollResult(id) {
                     if (currentTab === 'gallery') {
                         updateGalleryView();
                     }
-                    return;
                 }
+                isGenerating = false;
+                return;
             } else if (data.status === 'Error') {
+                if (currentPollInterval) {
+                    clearInterval(currentPollInterval);
+                    currentPollInterval = null;
+                }
+                isGenerating = false;
                 throw new Error(data.result?.error || 'Generation failed');
             }
             
             updateStatus(data.status);
-            await new Promise(resolve => setTimeout(resolve, 1000));
             attempts++;
         } catch (error) {
+            if (currentPollInterval) {
+                clearInterval(currentPollInterval);
+                currentPollInterval = null;
+            }
+            isGenerating = false;
             showError(error.message || 'Failed to check generation status');
-            return;
         }
-    }
-    
-    showError('Generation timeout - please try again');
+    };
+
+    // Initial poll
+    await poll();
+
+    // Set up interval for subsequent polls
+    currentPollInterval = setInterval(poll, 1000);
 }
+
+// Optionally add a cleanup function for when the page unloads
+window.addEventListener('beforeunload', () => {
+    if (currentPollInterval) {
+        clearInterval(currentPollInterval);
+        currentPollInterval = null;
+    }
+});
 
 function buildPayload(model, prompt) {
     const payload = {
@@ -377,8 +420,7 @@ document.addEventListener('DOMContentLoaded', function() {
 
     const modelSelect = document.getElementById('model');
     if (modelSelect) {
-        modelSelect.addEventListener('change', function() {
-            const model = this.value;
+        function updateModelOptions(model) {
             const allOptions = document.querySelectorAll('.model-option');
             allOptions.forEach(el => el.classList.add('hidden'));
             
@@ -399,6 +441,12 @@ document.addEventListener('DOMContentLoaded', function() {
                     document.querySelectorAll('.dev-option, .basic-option').forEach(el => el.classList.remove('hidden'));
                     break;
             }
+        }
+
+        modelSelect.value = 'flux-pro-1.1-ultra';
+        updateModelOptions('flux-pro-1.1-ultra');
+        modelSelect.addEventListener('change', function() {
+            updateModelOptions(this.value);
         });
     }
 
