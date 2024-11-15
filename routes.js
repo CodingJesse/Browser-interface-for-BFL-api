@@ -63,8 +63,7 @@ async function getNextImageName(directory) {
                     })
             );
             
-            // Sort newest first
-            images.sort((a, b) => b.created - a.created);
+            images.sort((b, a) => b.created - a.created);
             
             res.json(images);
         } catch (error) {

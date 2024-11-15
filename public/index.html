@@ -143,11 +143,17 @@
         </div>
     </div>
     
-        <div id="imageModal" class="fixed inset-0 flex items-center justify-center bg-black bg-opacity-75 hidden">
-            <span id="closeModal" class="absolute top-4 right-4 text-white text-2xl cursor-pointer">×</span>
-            <img id="modalImage" class="max-w-full max-h-full" />
+    <div id="imageModal" class="fixed inset-0 hidden z-50">
+        <div class="absolute inset-0 bg-black bg-opacity-90 flex items-center justify-center p-8">
+            <div class="relative max-w-7xl w-full flex items-center justify-center">
+                <button id="closeModal" class="absolute -top-12 right-0 text-white hover:text-gray-300 p-2 text-4xl transition-colors">×</button>
+                <div class="bg-white rounded-lg p-4 w-auto h-auto max-w-[90%] max-h-[85vh]">
+                    <img id="modalImage" class="w-auto h-auto max-w-full max-h-[80vh] object-contain rounded" />
+                </div>
+            </div>
         </div>
-    </div>   
+    </div>
+
     <script src="index.js"></script>
 </body>
 </html>

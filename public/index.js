@@ -18,6 +18,8 @@ function showGenerating() {
     }
 }
 
+
+
 function updateStatus(status) {
     const statusText = document.getElementById('statusText');
     if (statusText) {
@@ -38,11 +40,22 @@ function showError(message) {
 
 function showResult(imageSrc) {
     document.getElementById('result').innerHTML = `
-        <img src="${imageSrc}" alt="Generated image" class="w-full max-w-md mx-auto rounded-md cursor-pointer" 
-             onclick="openModal('${imageSrc}')" />
-        ${!saveToFileSystem ? '<button onclick="downloadImage(this)" class="mt-4 px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600">Download Image</button>' : ''}
+        <div class="space-y-4">
+            <img src="${imageSrc}" 
+                 alt="Generated image" 
+                 class="w-full max-w-md mx-auto rounded-md cursor-zoom-in hover:opacity-90 transition-opacity" 
+                 onclick="openModal('${imageSrc}')" />
+            ${!saveToFileSystem ? `
+                <div class="flex justify-center">
+                    <button onclick="downloadImage(this)" 
+                            data-image="${imageSrc}"
+                            class="px-4 py-2 bg-green-500 text-white rounded hover:bg-green-600 transition-colors">
+                        Download Image
+                    </button>
+                </div>
+            ` : ''}
+        </div>
     `;
-    updateSubmitButton(false);
 }
 
 function switchTab(tabName) {
@@ -67,6 +80,39 @@ function switchTab(tabName) {
     });
 }
 
+function openModal(imageSrc) {
+    const modal = document.getElementById('imageModal');
+    const modalImage = document.getElementById('modalImage');
+    if (modal && modalImage) {
+
+        document.body.classList.add('modal-open');
+        modalImage.src = imageSrc;
+        modal.classList.remove('hidden');
+        
+        modal.onclick = function(e) {
+            if (e.target !== modalImage && !modalImage.contains(e.target)) {
+                closeModal();
+            }
+        };
+        document.addEventListener('keydown', handleEscapeKey);
+    }
+}
+
+function closeModal() {
+    const modal = document.getElementById('imageModal');
+    if (modal) {
+        document.body.classList.remove('modal-open');
+        modal.classList.add('hidden');
+        document.removeEventListener('keydown', handleEscapeKey);
+    }
+}
+
+function handleEscapeKey(e) {
+    if (e.key === 'Escape') {
+        closeModal();
+    }
+}
+
 function updateGalleryView() {
     const galleryContent = document.getElementById('galleryContent');
     
@@ -81,26 +127,24 @@ function updateGalleryView() {
 
     const galleryHTML = `
         <div class="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-            ${Array.from(generatedImages.entries()).reverse().map(([timestamp, {data, prompt, fromDisk}]) => `
+            ${Array.from(generatedImages.entries()).reverse().map(([timestamp, {data, prompt}]) => `
                 <div class="border rounded-lg p-4 hover:shadow-lg transition">
-                    <img src="${fromDisk ? data : data}" 
+                    <img src="${data}" 
                          alt="Generated image" 
-                         class="w-full h-48 object-cover rounded-md cursor-pointer" 
-                         onclick="openModal('${fromDisk ? data : data}')" />
+                         class="w-full h-48 object-cover rounded-md cursor-zoom-in hover:opacity-90 transition-opacity" 
+                         onclick="openModal('${data}')" />
                     <p class="mt-2 text-sm text-gray-600 line-clamp-2">${prompt}</p>
                     <p class="text-xs text-gray-400 mt-1">${new Date(timestamp).toLocaleString()}</p>
                     <div class="flex gap-2 mt-2">
                         <button onclick="downloadImage(this)" 
-                                data-image="${fromDisk ? data : data}"
-                                class="flex-1 px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600 transition">
+                                data-image="${data}"
+                                class="flex-1 px-3 py-1 bg-green-500 text-white rounded text-sm hover:bg-green-600 transition-colors">
                             Download
                         </button>
-                        ${!fromDisk ? `
-                            <button onclick="deleteImage('${timestamp}')" 
-                                    class="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition">
-                                Delete
-                            </button>
-                        ` : ''}
+                        <button onclick="deleteImage('${timestamp}')" 
+                                class="px-3 py-1 bg-red-500 text-white rounded text-sm hover:bg-red-600 transition-colors">
+                            Delete
+                        </button>
                     </div>
                 </div>
             `).join('')}
@@ -159,12 +203,10 @@ function updateGalleryCount() {
     }
 }
 
-// Vervang de bestaande pollResult functie
 async function pollResult(id) {
     let attempts = 0;
     const maxAttempts = 60;
 
-    // Clear any existing interval
     if (currentPollInterval) {
         clearInterval(currentPollInterval);
         currentPollInterval = null;
@@ -242,14 +284,10 @@ async function pollResult(id) {
         }
     };
 
-    // Initial poll
     await poll();
-
-    // Set up interval for subsequent polls
     currentPollInterval = setInterval(poll, 1000);
 }
 
-// Optionally add a cleanup function for when the page unloads
 window.addEventListener('beforeunload', () => {
     if (currentPollInterval) {
         clearInterval(currentPollInterval);
@@ -448,6 +486,11 @@ document.addEventListener('DOMContentLoaded', function() {
         modelSelect.addEventListener('change', function() {
             updateModelOptions(this.value);
         });
+    }
+
+    const closeModalButton = document.getElementById('closeModal');
+    if (closeModalButton) {
+        closeModalButton.addEventListener('click', closeModal);
     }
 
     switchTab('generator');
