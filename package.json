@@ -1,6 +1,6 @@
 {
   "name": "flux",
-  "version": "1.0.0-beta.0",
+  "version": "1.0.0",
   "description": "An application that uses the Flux API to generate images.",
   "main": "server.js",
   "scripts": {
