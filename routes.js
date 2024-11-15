@@ -2,13 +2,17 @@ const express = require('express');
 const axios = require('axios');
 const router = express.Router();
 const path = require('path');
-const fs = require('fs').promises; 
+const fs = require('fs').promises;
+const fsSync = require('fs'); 
 
 const imagesDir = path.join(__dirname, 'public', 'images');
+if (!fsSync.existsSync(imagesDir)) {
+    fsSync.mkdirSync(imagesDir, { recursive: true });
+}
+
 const API_KEY = process.env.API_KEY;
 const BASE_URL = process.env.BASE_URL || 'https://api.bfl.ml';
 
-//mapping
 const MODEL_ENDPOINTS = {
     'flux-pro-1.1': 'flux-pro-1.1',
     'flux-pro': 'flux-pro',
@@ -16,45 +20,58 @@ const MODEL_ENDPOINTS = {
     'flux-pro-1.1-ultra': 'flux-pro-1.1-ultra'
 };
 
-fs.access(imagesDir)
-    .catch(() => fs.mkdir(imagesDir, { recursive: true }));
-
-function getNextImageName(directory) {
-    let count = 1;
-    let fileName = `image${count}.jpg`;
-
-    while (fs.existsSync(path.join(directory, fileName))) {
-        count++;
-        fileName = `image${count}.jpg`;
+async function getNextImageName(directory) {
+        try {
+            if (!fsSync.existsSync(directory)) {
+                await fs.mkdir(directory, { recursive: true });
+                return 'image1.jpg';
+            }
+    
+            const files = await fs.readdir(directory);
+            const imageFiles = files.filter(file => file.match(/^image\d+\.jpg$/));
+            
+            if (imageFiles.length === 0) {
+                return 'image1.jpg';
+            }
+    
+            const numbers = imageFiles
+                .map(file => parseInt(file.match(/^image(\d+)\.jpg$/)[1]))
+                .sort((a, b) => b - a);
+            
+            return `image${numbers[0] + 1}.jpg`;
+        } catch (error) {
+            console.error('Error generating image name:', error);
+            return `image${Date.now()}.jpg`; 
+        }
     }
+    
+   
 
-    return fileName;
-}
-
-router.get('/list-images', async (req, res) => {
-  try {
-      const files = await fs.readdir(imagesDir);
-      const images = await Promise.all(
-          files
-              .filter(file => file.endsWith('.jpg'))
-              .map(async (file) => {
-                  const stats = await fs.stat(path.join(imagesDir, file));
-                  return {
-                      path: `/images/${file}`,
-                      created: stats.mtime,
-                      prompt: 'Generated image'
-                  };
-              })
-      );
-      
-      images.sort((a, b) => a.created - b.created);
-      
-      res.json(images);
-  } catch (error) {
-      console.error('Failed to list images:', error);
-      res.status(500).json({ error: 'Failed to list images' });
-  }
-});
+    router.get('/list-images', async (req, res) => {
+        try {
+            const files = await fs.readdir(imagesDir);
+            const images = await Promise.all(
+                files
+                    .filter(file => file.endsWith('.jpg'))
+                    .map(async (file) => {
+                        const stats = await fs.stat(path.join(imagesDir, file));
+                        return {
+                            path: `/images/${file}`,
+                            created: stats.mtime,
+                            prompt: 'Generated image'
+                        };
+                    })
+            );
+            
+            // Sort newest first
+            images.sort((a, b) => b.created - a.created);
+            
+            res.json(images);
+        } catch (error) {
+            console.error('Failed to list images:', error);
+            res.status(500).json({ error: 'Failed to list images' });
+        }
+    });
 
 router.post('/create-request', async (req, res) => {
     try {
@@ -166,7 +183,7 @@ router.get('/get-result', async (req, res) => {
             });
         }
 
-        if (response.data.status === 'Ready' && response.data.result?.sample) {
+        if (response.data.status === 'Ready' && response.data.result && response.data.result.sample) {
             try {
                 const imageUrl = response.data.result.sample;
                 const imageResponse = await axios.get(imageUrl, { 
@@ -178,13 +195,25 @@ router.get('/get-result', async (req, res) => {
                     throw new Error('Failed to download image');
                 }
 
-                const imageBuffer = Buffer.from(imageResponse.data, 'binary');
+                const imageBuffer = Buffer.from(imageResponse.data);
 
                 if (saveToFile === 'true') {
-                    const imageName = getNextImageName(imagesDir);
+                    if (!fsSync.existsSync(imagesDir)) {
+                        await fs.mkdir(imagesDir, { recursive: true });
+                    }
+
+                    const imageName = await getNextImageName(imagesDir);
                     const imagePath = path.join(imagesDir, imageName);
-                    fs.writeFileSync(imagePath, imageBuffer);
-                    response.data.localPath = `/images/${imageName}`;
+                    
+                    try {
+                        await fs.writeFile(imagePath, imageBuffer);
+                        console.log(`Image saved successfully to ${imagePath}`);
+                        response.data.localPath = `/images/${imageName}`;
+                    } catch (writeError) {
+                        console.error('Failed to write image:', writeError);
+                        const base64Image = imageBuffer.toString('base64');
+                        response.data.imageData = `data:image/jpeg;base64,${base64Image}`;
+                    }
                 } else {
                     const base64Image = imageBuffer.toString('base64');
                     response.data.imageData = `data:image/jpeg;base64,${base64Image}`;
